@@ -302,7 +302,7 @@ tbats <- function(y, use.box.cox=NULL, use.trend=NULL, use.damped.trend=NULL, se
 		#	num.cores <- detectCores(all.tests = FALSE, logical = TRUE)
 		#}
 		#clus <- makeCluster(num.cores)
-		models.list <- clusterApplyLB(clus, c(1:nrow(control.array)), parFilterTBATSSpecifics, y=y, control.array=control.array, model.params=model.params, seasonal.periods=seasonal.periods, k.vector=k.vector, use.arma.errors=use.arma.errors, aux.model=aux.model, init.box.cox=init.box.cox, bc.lower=bc.lower, bc.upper=bc.upper)
+		models.list <- clusterApplyLB(clus, c(1:nrow(control.array)), parFilterTBATSSpecifics, y=y, control.array=control.array, model.params=model.params, seasonal.periods=seasonal.periods, k.vector=k.vector, use.arma.errors=use.arma.errors, aux.model=aux.model, init.box.cox=init.box.cox, bc.lower=bc.lower, bc.upper=bc.upper, ...)
 		stopCluster(clus)
 		##Choose the best model
 		####Get the AICs
@@ -528,23 +528,28 @@ tbats.components <- function(x)
     y <- x$y
   # Compute matrices
   tau <- ifelse(!is.null(x$k.vector), 2*sum(x$k.vector), 0)
-	w <- .Call("makeTBATSWMatrix", smallPhi_s = x$damping.parameter, kVector_s=as.integer(x$k.vector), arCoefs_s = x$ar.coefficients, maCoefs_s = x$ma.coefficients, tau_s=as.integer(tau), PACKAGE = "forecast")
+	w <- .Call("makeTBATSWMatrix", smallPhi_s = x$damping.parameter, kVector_s=as.integer(x$k.vector), 
+		arCoefs_s = x$ar.coefficients, maCoefs_s = x$ma.coefficients, tau_s=as.integer(tau), PACKAGE = "forecast")
 
   out <- cbind(observed=c(y), level=x$x[1,])
   if(!is.null(x$beta))
     out <- cbind(out, slope=x$x[2,])
-  nonseas <- 2+!is.null(x$beta) # No. non-seasonal columns in out
-  nseas <- length(x$seasonal.periods) # No. seasonal periods
 
-  seas.states <- cbind(x$seed.states,x$x)[-(1:(1+!is.null(x$beta))),]
-  seas.states <- seas.states[,-ncol(seas.states)]
-  w <- w$w.transpose[,-(1:(1+!is.null(x$beta))),drop=FALSE]
-  w <- w[,1:tau,drop=FALSE]
-  j <- cumsum(c(1,2*x$k.vector))
-  for(i in 1:nseas)
-    out <- cbind(out, season=c(w[,j[i]:(j[i+1]-1),drop=FALSE] %*% seas.states[j[i]:(j[i+1]-1),]))
-  if(nseas > 1)
-    colnames(out)[nonseas + 1:nseas] <- paste("season",1:nseas,sep="")
+  # Add seasonal components if they exist
+  if(tau > 0)
+  {
+	  nonseas <- 2+!is.null(x$beta) # No. non-seasonal columns in out
+  	nseas <- length(x$seasonal.periods) # No. seasonal periods
+	  seas.states <- cbind(x$seed.states,x$x)[-(1:(1+!is.null(x$beta))),]
+  	seas.states <- seas.states[,-ncol(seas.states)]
+	  w <- w$w.transpose[,-(1:(1+!is.null(x$beta))),drop=FALSE]
+  	w <- w[,1:tau,drop=FALSE]
+  	j <- cumsum(c(1,2*x$k.vector))
+  	for(i in 1:nseas)
+    	out <- cbind(out, season=c(w[,j[i]:(j[i+1]-1),drop=FALSE] %*% seas.states[j[i]:(j[i+1]-1),]))
+  	if(nseas > 1)
+    	colnames(out)[nonseas + 1:nseas] <- paste("season",1:nseas,sep="")
+  }
 
   # Add time series characteristics
   out <- ts(out)

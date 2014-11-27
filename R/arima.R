@@ -234,6 +234,15 @@ SD.test <- function (wts, s=frequency(wts))
 forecast.Arima <- function (object, h=ifelse(object$arma[5] > 1, 2 * object$arma[5], 10),
     level=c(80, 95), fan=FALSE, xreg=NULL, lambda=object$lambda,  bootstrap=FALSE, npaths=5000,...)
 {
+  # Check whether there're non-existent arguments
+  all.args <- names(formals())
+  user.args <- names(match.call())[-1L] # including arguments passed to 3 dots
+  check <- user.args %in% all.args
+  if (!all(check)) {
+    error.args <- user.args[!check]
+    warning(sprintf("The non-existent %s arguments will be ignored.", error.args))
+  }
+  
 #    use.constant <- is.element("constant",names(object$coef))
     use.drift <- is.element("drift", names(object$coef))
     x <- object$x <- getResponse(object)
@@ -618,7 +627,8 @@ print.Arima <- function (x, digits=max(3, getOption("digits") - 3), se=TRUE,
     {
         cat("\nsigma^2 estimated as ", format(x$sigma2, digits=digits),
             ":  log likelihood=", format(round(x$loglik, 2L)),"\n",sep="")
-        npar <- length(x$coef) + 1
+        #npar <- length(x$coef) + 1
+        npar <- length(x$coef[x$mask]) + 1
         nstar <- length(x$residuals) - x$arma[6] - x$arma[7]*x$arma[5]
         bic <- x$aic + npar*(log(nstar) - 2)
         aicc <- x$aic + 2*npar*(nstar/(nstar-npar-1) - 1)

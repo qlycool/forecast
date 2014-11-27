@@ -32,6 +32,11 @@ auto.arima <- function(x, d=NA, D=NA, max.p=5, max.q=5,
   test <- match.arg(test)
   seasonal.test <- match.arg(seasonal.test)
 
+  # Use AIC if npar <= 3
+  # AICc won't work for tiny samples.
+  if(length(x) <= 3L)
+    ic <- "aic"
+
   # Only consider non-seasonal models
   if(seasonal)
     m <- frequency(x)
@@ -84,19 +89,28 @@ auto.arima <- function(x, d=NA, D=NA, max.p=5, max.q=5,
 
   if(is.constant(dx))
   {
-    if(D>0)
-      fit <- Arima(x,order=c(0,d,0),seasonal=list(order=c(0,D,0),period=m), fixed=mean(dx,na.rm=TRUE), include.constant=TRUE)
-    else if(d < 2)
-      fit <- Arima(x,order=c(0,d,0),fixed=mean(dx,na.rm=TRUE),include.constant=TRUE)
-    else
-      stop("Data follow a simple polynomial and are not suitable for ARIMA modelling.")
-    fit$x <- x
+    if(is.null(xreg))
+    {
+      if(D>0)
+        fit <- Arima(x,order=c(0,d,0),seasonal=list(order=c(0,D,0),period=m), fixed=mean(dx,na.rm=TRUE), include.constant=TRUE)
+      else if(d < 2)
+        fit <- Arima(x,order=c(0,d,0),fixed=mean(dx,na.rm=TRUE),include.constant=TRUE)
+      else
+        stop("Data follow a simple polynomial and are not suitable for ARIMA modelling.")
+    }
+    else # Perfect regression
+    {
+      if(D>0)
+        fit <- Arima(x,order=c(0,d,0),seasonal=list(order=c(0,D,0),period=m), xreg=xreg)
+      else
+        fit <- Arima(x,order=c(0,d,0),xreg=xreg)
+    }
+    fit$x <- orig.x
     fit$series <- series
     fit$call <- match.call()
     fit$call$x <- data.frame(x=x)
     return(fit)
   }
-
 
   if(m > 1)
   {
@@ -349,7 +363,7 @@ auto.arima <- function(x, d=NA, D=NA, max.p=5, max.q=5,
   }
 
   # Refit using ML if approximation used for IC
-  if(approximation)
+  if(approximation & !is.null(bestfit$arma))
   {
     #constant <- length(bestfit$coef) > sum(bestfit$arma[1:4])
     newbestfit <- myarima(x,order=bestfit$arma[c(1,6,2)],
@@ -362,6 +376,7 @@ auto.arima <- function(x, d=NA, D=NA, max.p=5, max.q=5,
       bestfit <- newbestfit
   }
 
+  # Nothing fitted
   if(bestfit$ic == Inf)
   {
     cat("\n")
@@ -433,7 +448,7 @@ myarima <- function(x, order = c(0, 0, 0), seasonal = c(0, 0, 0), constant=TRUE,
         if(!is.na(fit$aic))
         {
             fit$bic <- fit$aic + npar*(log(nstar) - 2)
-            fit$aicc <- fit$aic + 2*npar*(nstar/(nstar-npar-1) - 1)
+            fit$aicc <- fit$aic + 2*npar*(npar+1)/(nstar-npar-1)
             fit$ic <- switch(ic,bic=fit$bic,aic=fit$aic,aicc=fit$aicc)
         }
         else
@@ -644,11 +659,13 @@ OCSBtest <- function(time.series, period)
                     regression <- try(lm(contingent.series ~ y.one + y.two - 1, na.action=NULL), silent=TRUE)
                     if(class(regression) == "try-error")
                       stop("The OCSB regression model cannot be estimated")
-                    if(mean(abs(regression$residuals),na.rm=TRUE)/mean(abs(contingent.series), na.rm=TRUE) < 1e-10)
-                    {
-                      # Perfect regression. Safest to do no differencing
+                    # Check if perfect regression. In that case, safest to do no differencing
+                    meanratio <- mean(abs(regression$residuals),na.rm=TRUE)/mean(abs(contingent.series), na.rm=TRUE)
+                    if(is.nan(meanratio))
                       return(0)
-                    }  
+                    if(meanratio < 1e-10)
+                      return(0)
+                    # Proceed to do OCSB test.
                     reg.summary <- summary(regression)
                     reg.coefs <- reg.summary$coefficients
                     t.two.pos <- grep("t.two", rownames(reg.coefs), fixed = TRUE)

@@ -1,12 +1,36 @@
-Version 5.5 (?? 2014)
-  * Improved document for croston()
-  * Added stlm() and forecast.stlm() functions, and added forecastfunction as a way of specifying
-    a forecast method in stlf() and forecast.stl().
+Version 5.7 (??)
+  * Fixed bug in tbats/bats where optional arguments were not being passed to auto.arima().
+  * Revised fourier() and fourierf() to avoid large orders, and to avoid zero columns.
+  * Improved accuracy of fourier() and fourierf(), while simplifying the code.
+  * Removed duplicate columns returned by fourier/fourierf with multiple seasonal periods.
+  * Corrected some bugs in simulate.Arima for models involving xreg.
+  * Centred simulations from simulate.Arima for non-stationary models by conditioning on first observation.
+
+Version 5.6 (23 September 2014)
+  * Improved tbats and bats by ensuring ARMA coefficients are not close to the
+    boundary of invertibility and stationarity.
+  * Improved nsdiffs() handling of degenerate series (e.g., all zeros).
+  * Improved forecast.ar() when function buried within other functions.
+  * Improved handling of degenerate ARIMA models when xreg used.
+  * More robust ets() initialization.
+  * Fixed problem in na.interp() with seasonal data having frequency <= 5.
+  * Removed undocumented option to use Rmalschains for optimization of ets().
+
+Version 5.5 (12 August 2014)
+  * Improved documentation for croston()
+  * Added stlm() and forecast.stlm() functions, and added forecastfunction argument as a way of
+    specifying a forecast method in stlf() and forecast.stl().
   * Improved forecast.ar() so that it is more likely to work if ar() and forecast.ar() are
     embedded within other functions.
   * Improved handling of ARIMA models with seasonality greater than 48
   * Improved handling of some degenerate regression models in nsdiffs()
   * Changed AIC for poor models from 1e20 to Inf.
+	* Update fourier() and fourierf() to work with msts object.
+	* Added a new argument find.frequency to forecast.ts().
+	* Added new arguments d and D to accuracy() for MASE.
+  * Corrected bugs in accuracy().
+  * Better handling of regression models with perfect fit in auto.arima().
+  * Fixed bug in tbats.components() when there are no seasonal components.
 
 Version 5.4 (8 May 2014)
   * Fixed bug in forecast.tbats() and forecast.bats() when ts.frequency does not match seasonal.periods.

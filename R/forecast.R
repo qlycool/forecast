@@ -5,16 +5,56 @@ forecast <- function(object,...) UseMethod("forecast")
 
 forecast.default <- function(object,...) forecast.ts(object,...)
 
+## A function determining the appropriate period, if the data is of unknown period
+## Written by Rob Hyndman
+findfrequency <- function(x)
+{
+  n <- length(x)
+  x <- as.ts(x)
+  # Remove trend from data
+  x <- residuals(tslm(x ~ trend))
+  # Compute spectrum by fitting ar model to largest section of x
+  spec <- spec.ar(c(na.contiguous(x)),plot=FALSE)
+  if(max(spec$spec)>10) # Arbitrary threshold chosen by trial and error.
+  {
+    period <- floor(1/spec$freq[which.max(spec$spec)] + 0.5)
+    if(period==Inf) # Find next local maximum
+    {
+      j <- which(diff(spec$spec)>0)
+      if(length(j)>0)
+      {
+        nextmax <- j[1] + which.max(spec$spec[(j[1]+1):500])
+        if(nextmax < length(spec$freq))
+          period <- floor(1/spec$freq[nextmax] + 0.5)
+        else
+          period <- 1L
+      }
+      else
+        period <- 1L
+    }
+  }
+  else
+    period <- 1L
+ 
+  return(as.integer(period))
+}
+
 forecast.ts <- function(object, h=ifelse(frequency(object)>1, 2*frequency(object), 10), 
-  level=c(80,95), fan=FALSE, robust=FALSE, lambda = NULL, ...)
+  level=c(80,95), fan=FALSE, robust=FALSE, lambda = NULL, find.frequency = FALSE, ...)
 {
   n <- length(object)
+  if (find.frequency) {
+    object <- ts(object, frequency = findfrequency(object))
+    obj.freq <- frequency(object)
+  } else {
+    obj.freq <- frequency(object)
+  }
   if(robust)
     object <- tsclean(object, replace.missing=TRUE, lambda = lambda)
 
   if(n > 3)
   {
-    if(frequency(object) < 13)
+    if(obj.freq < 13)
       forecast(ets(object,lambda = lambda, ...),h=h,level=level,fan=fan)
     else
       stlf(object,h=h,level=level,fan=fan,lambda = lambda, ...)
